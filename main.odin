@@ -7,6 +7,7 @@ import "core:os"
 import "core:fmt"
 import "core:runtime"
 import "core:strings"
+import "core:math"
 
 main :: proc()
 {
@@ -35,96 +36,26 @@ main :: proc()
 
 	nrAttributes : i32
 	gl.GetIntegerv(gl.MAX_VERTEX_ATTRIBS, &nrAttributes);
-	fmt.printf("Maximum nr of vertex attributes supported: %d", nrAttributes)
+	fmt.printf("Maximum nr of vertex attributes supported: %d\n", nrAttributes)
 
 	// build and compile our shader program
-	// vertex shader
-	vertexShader := gl.CreateShader(gl.VERTEX_SHADER)
-	gl.ShaderSource(vertexShader, 1, &vertexShaderSource, nil)
-	gl.CompileShader(vertexShader)
-	// check for shader compile errors
-	success : i32
-	infoLog : [512]u8
-	gl.GetShaderiv(vertexShader, gl.COMPILE_STATUS, &success)
-	if success == 0
-	{
-		gl.GetShaderInfoLog(vertexShader, 512, nil, &infoLog[0])
-		fmt.eprintf("ERROR: Shader Vertex Compilation Failed\n%s", infoLog)
-		os.exit(-3)
-	}
-	// fragment shader
-	fragmentShader := gl.CreateShader(gl.FRAGMENT_SHADER)
-	gl.ShaderSource(fragmentShader, 1, &fragmentShaderSource, nil)
-	gl.CompileShader(fragmentShader)
-	// check for shader compile errors
-	gl.GetShaderiv(fragmentShader, gl.COMPILE_STATUS, &success)
-	if success == 0
-	{
-		gl.GetShaderInfoLog(fragmentShader, 512, nil, &infoLog[0])
-		fmt.eprintf("ERROR: Shader Fragment Compilation Failed\n%s", infoLog)
-		os.exit(-3)
-	}
-	// link shaders
-	shaderProgram := gl.CreateProgram()
-	gl.AttachShader(shaderProgram, vertexShader)
-	gl.AttachShader(shaderProgram, fragmentShader)
-	gl.LinkProgram(shaderProgram)
-	// check for linking errors
-	gl.GetProgramiv(shaderProgram, gl.LINK_STATUS, &success)
-	if success == 0
-	{
-		gl.GetProgramInfoLog(shaderProgram, 512, nil, &infoLog[0])
-		fmt.eprintf("ERROR: Shader Program Linking Failed\n%s", infoLog)
-		os.exit(-4)
-	}
-	gl.DeleteShader(fragmentShader)
+	programID := setShader("4.6.shader.vs", "4.6.shader.fs")
 
-	// fragment shader
-	fragmentShaderYellow := gl.CreateShader(gl.FRAGMENT_SHADER)
-	gl.ShaderSource(fragmentShaderYellow, 1, &fragmentShaderSource2, nil)
-	gl.CompileShader(fragmentShaderYellow)
-	// check for shader compile errors
-	gl.GetShaderiv(fragmentShaderYellow, gl.COMPILE_STATUS, &success)
-	if success == 0
-	{
-		gl.GetShaderInfoLog(fragmentShaderYellow, 512, nil, &infoLog[0])
-		fmt.eprintf("ERROR: Shader Fragment Compilation Failed\n%s", infoLog)
-		os.exit(-3)
-	}
-	shaderProgramYellow := gl.CreateProgram()
-	gl.AttachShader(shaderProgramYellow, vertexShader)
-	gl.AttachShader(shaderProgramYellow, fragmentShaderYellow)
-	gl.LinkProgram(shaderProgramYellow)
-	// check for linking errors
-	gl.GetProgramiv(shaderProgramYellow, gl.LINK_STATUS, &success)
-	if success == 0
-	{
-		gl.GetProgramInfoLog(shaderProgramYellow, 512, nil, &infoLog[0])
-		fmt.eprintf("ERROR: Shader Program Linking Failed\n%s", infoLog)
-		os.exit(-4)
-	}
-	gl.DeleteShader(vertexShader)
-	gl.DeleteShader(fragmentShaderYellow)
-
-	VBOs, VAOs : [2]u32
-	gl.GenVertexArrays(2, &VAOs[0])
-	gl.GenBuffers(2, &VBOs[0])
+	VBO, VAO : u32
+	gl.GenVertexArrays(1, &VAO)
+	gl.GenBuffers(1, &VBO)
 	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-	gl.BindVertexArray(VAOs[0])
+	gl.BindVertexArray(VAO)
 
-	gl.BindBuffer(gl.ARRAY_BUFFER, VBOs[0])
+	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices[0]) * len(vertices), raw_data(vertices), gl.STATIC_DRAW)
 
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices[0]) * len(indices), raw_data(indices), gl.STATIC_DRAW)
-
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * size_of(f32), uintptr(0))
+	// position attribute
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
 	gl.EnableVertexAttribArray(0)  
-
-	gl.BindVertexArray(VAOs[1])
-	gl.BindBuffer(gl.ARRAY_BUFFER, VBOs[1])
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices2[0]) * len(vertices2), raw_data(vertices2), gl.STATIC_DRAW)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, uintptr(0))
-	gl.EnableVertexAttribArray(0)
+	// color attribute
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(3 * size_of(f32)))
+	gl.EnableVertexAttribArray(1)  
 
 	// note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
@@ -145,14 +76,9 @@ main :: proc()
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
-		// draw our first triangle
-		gl.UseProgram(shaderProgram)
-		
-		gl.BindVertexArray(VAOs[0])
-		gl.DrawArrays(gl.TRIANGLES, 0, 3)
-
-		gl.UseProgram(shaderProgramYellow)
-		gl.BindVertexArray(VAOs[1])
+		// now render the triangles
+		gl.UseProgram(programID)
+		gl.BindVertexArray(VAO)
 		gl.DrawArrays(gl.TRIANGLES, 0, 3)
 
 		// check and call events and swap the buffers
@@ -162,9 +88,9 @@ main :: proc()
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
-	gl.DeleteVertexArrays(1, &VAOs[0]);
-	gl.DeleteBuffers(2, &VBOs[0]);
-	gl.DeleteProgram(shaderProgram);
+	gl.DeleteVertexArrays(1, &VAO);
+	gl.DeleteBuffers(1, &VBO);
+	gl.DeleteProgram(programID)
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfw.Terminate()
