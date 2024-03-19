@@ -3,6 +3,7 @@ package code
 import glfw "vendor:glfw/bindings"
 import glf "vendor:glfw"
 import gl "vendor:openGL"
+import stbi "vendor:stb/image"
 import "core:os"
 import "core:fmt"
 import "core:runtime"
@@ -35,27 +36,61 @@ main :: proc()
 	gl.load_up_to(int(MAJOR_VERSION), MINOR_VERSION, glf.gl_set_proc_address)
 
 	nrAttributes : i32
-	gl.GetIntegerv(gl.MAX_VERTEX_ATTRIBS, &nrAttributes);
+	gl.GetIntegerv(gl.MAX_VERTEX_ATTRIBS, &nrAttributes)
 	fmt.printf("Maximum nr of vertex attributes supported: %d\n", nrAttributes)
 
 	// build and compile our shader program
-	programID := setShader("4.6.shader.vs", "4.6.shader.fs")
+	programID := setShader("texture.vs", "texture.fs")
 
-	VBO, VAO : u32
+	VBO, VAO, EBO : u32
 	gl.GenVertexArrays(1, &VAO)
 	gl.GenBuffers(1, &VBO)
+	gl.GenBuffers(1, &EBO)
+
 	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
 	gl.BindVertexArray(VAO)
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices[0]) * len(vertices), raw_data(vertices), gl.STATIC_DRAW)
 
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO)
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices[0]) * len(indices), raw_data(indices), gl.STATIC_DRAW)
+
 	// position attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
 	gl.EnableVertexAttribArray(0)  
 	// color attribute
-	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(3 * size_of(f32)))
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(3 * size_of(f32)))
 	gl.EnableVertexAttribArray(1)  
+
+	// texture coord attribute
+	gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(6 * size_of(f32)))
+	gl.EnableVertexAttribArray(2)
+
+	// load and create a texture 
+	texture : u32
+	gl.GenTextures(1, &texture)
+	gl.BindTexture(gl.TEXTURE_2D, texture) // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+	// set the texture wrapping parameters
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)	// set texture wrapping to gl.REPEAT (default wrapping method)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	// set texture filtering parameters
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	// load image, create texture and generate mipmaps
+	width, height, nrChannels : i32
+	// The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform replace it with your own image path.
+	data := stbi.load("wall.jpg", &width, &height, &nrChannels, 0)
+	if data != nil
+	{
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0, gl.RGB, gl.UNSIGNED_BYTE, data)
+		gl.GenerateMipmap(gl.TEXTURE_2D)
+	}
+	else
+	{
+		fmt.eprintf("Failed to load texture")
+	}
+	stbi.image_free(data)
 
 	// note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
@@ -76,10 +111,14 @@ main :: proc()
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
+		// bind Texture
+		gl.BindTexture(gl.TEXTURE_2D, texture)
+
 		// now render the triangles
 		gl.UseProgram(programID)
 		gl.BindVertexArray(VAO)
-		gl.DrawArrays(gl.TRIANGLES, 0, 3)
+		//gl.DrawArrays(gl.TRIANGLES, 0, 3)
+		gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
 
 		// check and call events and swap the buffers
 		glfw.SwapBuffers(window)
@@ -88,8 +127,9 @@ main :: proc()
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
-	gl.DeleteVertexArrays(1, &VAO);
-	gl.DeleteBuffers(1, &VBO);
+	gl.DeleteVertexArrays(1, &VAO)
+	gl.DeleteBuffers(1, &VBO)
+	gl.DeleteBuffers(1, &EBO)
 	gl.DeleteProgram(programID)
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
