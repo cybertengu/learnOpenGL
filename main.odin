@@ -12,7 +12,7 @@ import "core:math"
 
 main :: proc()
 {
-	if (!glfw.Init())
+	if !glfw.Init()
 	{
 	    // Initialization failed
 	    fmt.eprintf("Could not initialize GLFW.")
@@ -80,7 +80,7 @@ main :: proc()
 	// load image, create texture and generate mipmaps
 	width, height, nrChannels : i32
 	// The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform replace it with your own image path.
-	data := stbi.load("wall.jpg", &width, &height, &nrChannels, 0)
+	data := stbi.load("container.jpg", &width, &height, &nrChannels, 0)
 	if data != nil
 	{
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0, gl.RGB, gl.UNSIGNED_BYTE, data)
@@ -100,6 +100,8 @@ main :: proc()
 	gl.BindVertexArray(0)
 	//gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
 	//gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
+	gl.UseProgram(programID)
+	gl.Uniform1i(gl.GetUniformLocation(programID, "texture1"), 0)
 	
 	// render loop
 	for !glfw.WindowShouldClose(window)
@@ -112,12 +114,12 @@ main :: proc()
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		// bind Texture
+		gl.ActiveTexture(gl.TEXTURE0)
 		gl.BindTexture(gl.TEXTURE_2D, texture)
 
 		// now render the triangles
 		gl.UseProgram(programID)
 		gl.BindVertexArray(VAO)
-		//gl.DrawArrays(gl.TRIANGLES, 0, 3)
 		gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
 
 		// check and call events and swap the buffers
