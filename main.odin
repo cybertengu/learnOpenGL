@@ -83,6 +83,7 @@ main :: proc()
 	data := stbi.load("container.jpg", &width, &height, &nrChannels, 0)
 	if data != nil
 	{
+		gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0, gl.RGB, gl.UNSIGNED_BYTE, data)
 		gl.GenerateMipmap(gl.TEXTURE_2D)
 	}
