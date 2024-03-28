@@ -4,6 +4,7 @@ import gl "vendor:openGL"
 import "core:os"
 import "core:fmt"
 import "core:strings"
+import "core:math/linalg/glsl"
 
 Shader :: struct
 {
@@ -28,6 +29,51 @@ setInt :: proc(name : cstring, value : i32, ID : u32)
 setFloat :: proc(name : cstring, value : f32, ID : u32)
 {
 	gl.Uniform1f(gl.GetUniformLocation(ID, name), value)
+}
+
+setVec2 :: proc(name : cstring, value : ^glsl.vec2, ID : u32)
+{
+	gl.Uniform2fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
+}
+
+setVec3 :: proc(name : cstring, value : ^glsl.vec3, ID : u32)
+{
+	gl.Uniform3fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
+}
+
+setVec4 :: proc(name : cstring, value : ^glsl.vec4, ID : u32)
+{
+	gl.Uniform4fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
+}
+
+setVec2xy :: proc(name : cstring, x, y : f32, ID : u32)
+{
+	gl.Uniform2f(gl.GetUniformLocation(ID, name), x, y)
+}
+
+setVec3xyz :: proc(name : cstring, x, y, z : f32, ID : u32)
+{
+	gl.Uniform3f(gl.GetUniformLocation(ID, name), x, y, z)
+}
+
+setVec4xyzw :: proc(name : cstring, x, y, z, w : f32, ID : u32)
+{
+	gl.Uniform4f(gl.GetUniformLocation(ID, name), x, y, z, w)
+}
+
+setMat2 :: proc(name : cstring, mat : ^glsl.mat2, ID : u32)
+{
+	gl.UniformMatrix2fv(gl.GetUniformLocation(ID, name), 1, gl.FALSE, raw_data(mat))
+}
+
+setMat3 :: proc(name : cstring, mat : ^glsl.mat3, ID : u32)
+{
+	gl.UniformMatrix3fv(gl.GetUniformLocation(ID, name), 1, gl.FALSE, raw_data(mat))
+}
+
+setMat4 :: proc(name : cstring, mat : ^glsl.mat4, ID : u32)
+{
+	gl.UniformMatrix4fv(gl.GetUniformLocation(ID, name), 1, gl.FALSE, raw_data(mat))
 }
 
 setShader :: proc(vertexPath, fragmentPath : string) -> u32
