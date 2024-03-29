@@ -42,6 +42,9 @@ main :: proc()
 	gl.GetIntegerv(gl.MAX_VERTEX_ATTRIBS, &nrAttributes)
 	fmt.printf("Maximum nr of vertex attributes supported: %d\n", nrAttributes)
 
+	// configure global opengl state
+	gl.Enable(gl.DEPTH_TEST)
+
 	// build and compile our shader program
 	programID := setShader("texture.vs", "texture.fs")
 
@@ -136,7 +139,8 @@ main :: proc()
 		
 		// rendering commands
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
+		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
 
 		// bind Texture
 		gl.ActiveTexture(gl.TEXTURE0)
@@ -147,25 +151,47 @@ main :: proc()
 		// set the texture mix value in the shader
 		setFloat("mixValue", mixValue, programID)	
 
-		trans := linalg.identity_matrix(linalg.Matrix4f32)
-		trans = linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{0.5, -0.5, 0}))
-		trans = linalg.matrix_mul(trans, linalg.matrix4_rotate_f32((f32(glfw.GetTime())), [3]f32{0, 0, 1}))
-//		trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{0.5, -0.5, 0}))
+		//model := linalg.identity_matrix(linalg.Matrix4f32)
+		view := linalg.identity_matrix(linalg.Matrix4f32)
+		projection := linalg.identity_matrix(linalg.Matrix4f32)
+		//model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(f32(glfw.GetTime() * linalg.to_radians(50.0)), [3]f32{0.5, 1, 0}))
+		// note that we're translating the scene in the reverse direction of where we want to move
+		view = linalg.matrix_mul(view, linalg.matrix4_translate([3]f32{0, 0, -3}))
+		projection = linalg.matrix4_perspective_f32(45, SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
+		//trans := linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{0.5, -0.5, 0}))
+		//trans = linalg.matrix_mul(trans, linalg.matrix4_rotate_f32((f32(glfw.GetTime())), [3]f32{0, 0, 1}))
+//		//trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{0.5, -0.5, 0}))
 
 		// now render the triangles
-		transformLoc := gl.GetUniformLocation(programID, "transform")
-		gl.UniformMatrix4fv(transformLoc, 1, gl.FALSE, raw_data(&trans))
+		//modelLoc := gl.GetUniformLocation(programID, "model")
+		//gl.UniformMatrix4fv(modelLoc, 1, gl.FALSE, raw_data(&model))
+		//viewLoc := gl.GetUniformLocation(programID, "view")
+		//gl.UniformMatrix4fv(viewLoc, 1, gl.FALSE, raw_data(&view))
+		setMat4("projection", &projection, programID)
+		setMat4("view", &view, programID)
 		
 		// render container
 		gl.BindVertexArray(VAO)
-		gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
+		for i := 0; i < 10; i += 1
+		{
+			model := linalg.identity_matrix(linalg.Matrix4f32)
+			model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(cubePositions[i]))
+			angle := linalg.to_radians(20.0 * f32(i))
+			if i % 3 == 0
+			{
+				angle = f32(glfw.GetTime()) * 25.0
+			}
+			model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(angle, [3]f32{1, 0.3, 0.5}))
+			setMat4("model", &model, programID)
 
-		scaleAmount := math.sin_f32(f32(glfw.GetTime()))
-		trans = linalg.identity_matrix(linalg.Matrix4f32)
-		trans = linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{-0.5, 0.5, 0}))
-		trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{scaleAmount, scaleAmount, scaleAmount}))
-		gl.UniformMatrix4fv(transformLoc, 1, gl.FALSE, raw_data(&trans))
-		gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
+			gl.DrawArrays(gl.TRIANGLES, 0, 36)
+		}
+
+		//scaleAmount := math.sin_f32(f32(glfw.GetTime()))
+		//trans = linalg.identity_matrix(linalg.Matrix4f32)
+		//trans = linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{-0.5, 0.5, 0}))
+		//trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{scaleAmount, scaleAmount, scaleAmount}))
+		//gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
 
 		// check and call events and swap the buffers
 		glfw.SwapBuffers(window)
