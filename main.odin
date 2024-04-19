@@ -12,8 +12,17 @@ import "core:math"
 import "core:math/linalg/glsl"
 import "core:math/linalg"
 
+deltaTime, lastFrame : f64
+lastX : f32 = 400
+lastY : f32 = 300
+firstMouse : bool = true
+camera : Camera
+
 main :: proc()
 {
+	camera.Position = linalg.Vector3f32{0, 0, 3}
+	setCamera(&camera, camera.Position)
+
 	if !glfw.Init()
 	{
 	    // Initialization failed
@@ -37,6 +46,9 @@ main :: proc()
 	glfw.MakeContextCurrent(window)
 	glfw.SetFramebufferSizeCallback(window, framebufferSizeCallback)
 	gl.load_up_to(int(MAJOR_VERSION), MINOR_VERSION, glf.gl_set_proc_address)
+	glfw.SetInputMode(window, glf.CURSOR, glf.CURSOR_DISABLED)
+	glf.SetCursorPosCallback(window, glf.CursorPosProc(mouseCallback))
+	glf.SetScrollCallback(window, glf.CursorPosProc(scrollCallback))
 
 	nrAttributes : i32
 	gl.GetIntegerv(gl.MAX_VERTEX_ATTRIBS, &nrAttributes)
@@ -134,6 +146,10 @@ main :: proc()
 	// render loop
 	for !glfw.WindowShouldClose(window)
 	{
+		currentFrame := glfw.GetTime()
+		deltaTime = currentFrame - lastFrame
+		lastFrame = currentFrame
+
 		// input
 		processInput(&window)
 		
@@ -141,35 +157,24 @@ main :: proc()
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-
 		// bind Texture
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.BindTexture(gl.TEXTURE_2D, texture1)
 		gl.ActiveTexture(gl.TEXTURE1)
 		gl.BindTexture(gl.TEXTURE_2D, texture2)
 
-		// set the texture mix value in the shader
+		// activate shader
+		gl.UseProgram(programID)
 		setFloat("mixValue", mixValue, programID)	
 
-		//model := linalg.identity_matrix(linalg.Matrix4f32)
-		view := linalg.identity_matrix(linalg.Matrix4f32)
-		projection := linalg.identity_matrix(linalg.Matrix4f32)
-		//model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(f32(glfw.GetTime() * linalg.to_radians(50.0)), [3]f32{0.5, 1, 0}))
 		// note that we're translating the scene in the reverse direction of where we want to move
-		view = linalg.matrix_mul(view, linalg.matrix4_translate([3]f32{0, 0, -3}))
-		projection = linalg.matrix4_perspective_f32(45, SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
-		//trans := linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{0.5, -0.5, 0}))
-		//trans = linalg.matrix_mul(trans, linalg.matrix4_rotate_f32((f32(glfw.GetTime())), [3]f32{0, 0, 1}))
-//		//trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{0.5, -0.5, 0}))
-
-		// now render the triangles
-		//modelLoc := gl.GetUniformLocation(programID, "model")
-		//gl.UniformMatrix4fv(modelLoc, 1, gl.FALSE, raw_data(&model))
-		//viewLoc := gl.GetUniformLocation(programID, "view")
-		//gl.UniformMatrix4fv(viewLoc, 1, gl.FALSE, raw_data(&view))
+		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
 		setMat4("projection", &projection, programID)
-		setMat4("view", &view, programID)
 		
+		// camera/view transformation
+		view := getViewMatrix(&camera)
+		setMat4("view", &view, programID)
+
 		// render container
 		gl.BindVertexArray(VAO)
 		for i := 0; i < 10; i += 1
@@ -177,26 +182,15 @@ main :: proc()
 			model := linalg.identity_matrix(linalg.Matrix4f32)
 			model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(cubePositions[i]))
 			angle := linalg.to_radians(20.0 * f32(i))
-			if i % 3 == 0
-			{
-				angle = f32(glfw.GetTime()) * 25.0
-			}
 			model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(angle, [3]f32{1, 0.3, 0.5}))
 			setMat4("model", &model, programID)
 
 			gl.DrawArrays(gl.TRIANGLES, 0, 36)
 		}
 
-		//scaleAmount := math.sin_f32(f32(glfw.GetTime()))
-		//trans = linalg.identity_matrix(linalg.Matrix4f32)
-		//trans = linalg.matrix_mul(trans, linalg.matrix4_translate_f32([3]f32{-0.5, 0.5, 0}))
-		//trans = linalg.matrix_mul(trans, linalg.matrix4_scale_f32([3]f32{scaleAmount, scaleAmount, scaleAmount}))
-		//gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
-
 		// check and call events and swap the buffers
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()
-
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
@@ -221,25 +215,56 @@ processInput :: proc(window : ^glfw.WindowHandle)
 	{
 		glfw.SetWindowShouldClose(window^, true)
 	}
-	if glfw.GetKey(window^, glf.KEY_UP) == glf.PRESS
-	{
-		mixValue += 0.001
-		if mixValue >= 1
-		{
-			mixValue = 1
-		}
+	
+	if glfw.GetKey(window^, glf.KEY_W) == glf.PRESS
+	{	
+		processKeyboard(&camera, .FORWARD, f32(deltaTime))
 	}
-	if glfw.GetKey(window^, glf.KEY_DOWN) == glf.PRESS
+	if glfw.GetKey(window^, glf.KEY_S) == glf.PRESS
 	{
-		mixValue -= 0.001
-		if mixValue <= 0
-		{
-			mixValue = 0
-		}
+		processKeyboard(&camera, .BACKWARD, f32(deltaTime))
 	}
+	if glfw.GetKey(window^, glf.KEY_A) == glf.PRESS
+	{
+		processKeyboard(&camera, .LEFT, f32(deltaTime))
+	}
+	if glfw.GetKey(window^, glf.KEY_D) == glf.PRESS
+	{
+		processKeyboard(&camera, .RIGHT, f32(deltaTime))
+	}
+}
+
+mouseCallback :: proc "c" (window : ^glfw.WindowHandle, xposIn, yposIn : f64)
+{
+	context = runtime.default_context()
+
+	xpos : f32 = f32(xposIn)
+	ypos : f32 = f32(yposIn)
+
+	if firstMouse
+	{
+		lastX = f32(xpos)
+		lastY = f32(ypos)
+		firstMouse = false
+	}
+
+	xoffset : f32 = xpos - lastX
+	yoffset : f32 = lastY - ypos
+
+	lastX = xpos
+	lastY = ypos
+
+	processMouseMovement(&camera, xoffset, yoffset)
+}
+
+scrollCallback :: proc "c" (window : ^glfw.WindowHandle, xoffset, yoffset : f64)
+{
+	context = runtime.default_context()
+	processMouseScroll(&camera, f32(yoffset))
 }
 
 framebufferSizeCallback :: proc "c" (window : glfw.WindowHandle, width, height : i32)
 {
 	gl.Viewport(0, 0, width, height)
 }
+
