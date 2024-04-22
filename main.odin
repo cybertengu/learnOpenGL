@@ -17,6 +17,7 @@ lastX : f32 = 400
 lastY : f32 = 300
 firstMouse : bool = true
 camera : Camera
+lightPos := linalg.Vector3f32{1.2, 1.0, 2.0}
 
 main :: proc()
 {
@@ -58,90 +59,36 @@ main :: proc()
 	gl.Enable(gl.DEPTH_TEST)
 
 	// build and compile our shader program
-	programID := setShader("texture.vs", "texture.fs")
+	lightingID := setShader("texture.vs", "texture.fs")
+	lightingCubeID := setShader("lightTexture.vs", "lightTexture.fs")
 
-	VBO, VAO, EBO : u32
-	gl.GenVertexArrays(1, &VAO)
+	VBO, cubeVAO : u32
+	gl.GenVertexArrays(1, &cubeVAO)
 	gl.GenBuffers(1, &VBO)
-	gl.GenBuffers(1, &EBO)
-
-	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-	gl.BindVertexArray(VAO)
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices[0]) * len(vertices), raw_data(vertices), gl.STATIC_DRAW)
 
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO)
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices[0]) * len(indices), raw_data(indices), gl.STATIC_DRAW)
+	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+	gl.BindVertexArray(cubeVAO)
 
 	// position attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 5 * size_of(f32), uintptr(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
 	gl.EnableVertexAttribArray(0)  
-
-	// texture coord attribute
-	gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 5 * size_of(f32), uintptr(3 * size_of(f32)))
+	// normal attribute
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(3 * size_of(f32)))
 	gl.EnableVertexAttribArray(1)
 
-	// load and create a texture 
-	texture1, texture2 : u32
-	gl.GenTextures(1, &texture1)
-	gl.BindTexture(gl.TEXTURE_2D, texture1) // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-	// set the texture wrapping parameters
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)	// set texture wrapping to gl.REPEAT (default wrapping method)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	// set texture filtering parameters
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-	// load image, create texture and generate mipmaps
-	width, height, nrChannels : i32
-	// The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform replace it with your own image path.
-	stbi.set_flip_vertically_on_load(1)
-	data := stbi.load("container.jpg", &width, &height, &nrChannels, 0)
-	if data != nil
-	{
-		gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0, gl.RGB, gl.UNSIGNED_BYTE, data)
-		gl.GenerateMipmap(gl.TEXTURE_2D)
-	}
-	else
-	{
-		fmt.eprintf("Failed to load texture")
-	}
-	stbi.image_free(data)
+	lightCubeVAO : u32
+	gl.GenVertexArrays(1, &lightCubeVAO)
+	gl.BindVertexArray(lightCubeVAO)
 
-	gl.GenTextures(1, &texture2)
-	gl.BindTexture(gl.TEXTURE_2D, texture2) // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-	// set the texture wrapping parameters
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)	// set texture wrapping to gl.REPEAT (default wrapping method)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	// set texture filtering parameters
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	// we only need to bind to the VBO, the container's  VBO's data already contains the data.
+	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 
-	data2 := stbi.load("awesomeface.png", &width, &height, &nrChannels, 0)
-	if data2 != nil
-	{
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data2)
-		gl.GenerateMipmap(gl.TEXTURE_2D)
-	}
-	else
-	{
-		fmt.eprintf("Failed to load texture.")
-	}
-	stbi.image_free(data2)
-
-	// note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-
-	// You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-	// VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-	gl.BindVertexArray(0)
-	//gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-	//gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
-	gl.UseProgram(programID)
-	//gl.Uniform1i(gl.GetUniformLocation(programID, "texture1"), 0)
-	setInt("texture1", 0, programID)
-	setInt("texture2", 1, programID)
+	// set the vertex attribute
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
+	gl.EnableVertexAttribArray(0)
 
 	// render loop
 	for !glfw.WindowShouldClose(window)
@@ -157,36 +104,44 @@ main :: proc()
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-		// bind Texture
-		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, texture1)
-		gl.ActiveTexture(gl.TEXTURE1)
-		gl.BindTexture(gl.TEXTURE_2D, texture2)
+		// change the light's position values over time.
+		lightPos.x = 1.0 + math.cos_f32(f32(glfw.GetTime())) * 2.0
+		lightPos.y = math.cos_f32(f32(glfw.GetTime()) / 2.0) * 1.0
 
 		// activate shader
-		gl.UseProgram(programID)
-		setFloat("mixValue", mixValue, programID)	
-
-		// note that we're translating the scene in the reverse direction of where we want to move
-		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
-		setMat4("projection", &projection, programID)
+		gl.UseProgram(lightingID)
+		setVec3xyz("objectColor", 1, 0.5, 0.31, lightingID)
+		setVec3xyz("lightColor", 1, 1, 1, lightingID)
+		setVec3("lightPos", &lightPos, lightingID)
+		setVec3("viewPos", &camera.Position, lightingID)
 		
+		// view/projection transformations
+		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
+
 		// camera/view transformation
 		view := getViewMatrix(&camera)
-		setMat4("view", &view, programID)
+		setMat4("projection", &projection, lightingID)
+		setMat4("view", &view, lightingID)
+		
+		// world transformation
+		model := linalg.identity_matrix(linalg.Matrix4f32)
+		setMat4("model", &model, lightingID)
 
-		// render container
-		gl.BindVertexArray(VAO)
-		for i := 0; i < 10; i += 1
-		{
-			model := linalg.identity_matrix(linalg.Matrix4f32)
-			model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(cubePositions[i]))
-			angle := linalg.to_radians(20.0 * f32(i))
-			model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(angle, [3]f32{1, 0.3, 0.5}))
-			setMat4("model", &model, programID)
+		// render the cube
+		gl.BindVertexArray(cubeVAO)
+		gl.DrawArrays(gl.TRIANGLES, 0, 36)
 
-			gl.DrawArrays(gl.TRIANGLES, 0, 36)
-		}
+		// also draw the lamp object
+		gl.UseProgram(lightingCubeID)
+		setMat4("projection", &projection, lightingCubeID)
+		setMat4("view", &view, lightingCubeID)
+		model = linalg.identity_matrix(linalg.Matrix4f32)
+		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(lightPos))
+		model = linalg.matrix_mul(model, linalg.matrix4_scale_f32(linalg.Vector3f32{0.2, 0.2, 0.2}))
+		setMat4("model", &model, lightingCubeID)
+
+		gl.BindVertexArray(lightCubeVAO)
+		gl.DrawArrays(gl.TRIANGLES, 0, 36)
 
 		// check and call events and swap the buffers
 		glfw.SwapBuffers(window)
@@ -194,10 +149,11 @@ main :: proc()
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
-	gl.DeleteVertexArrays(1, &VAO)
 	gl.DeleteBuffers(1, &VBO)
-	gl.DeleteBuffers(1, &EBO)
-	gl.DeleteProgram(programID)
+	gl.DeleteBuffers(1, &cubeVAO)
+	gl.DeleteBuffers(1, &lightCubeVAO)
+	gl.DeleteProgram(lightingID)
+	gl.DeleteProgram(lightingCubeID)
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfw.Terminate()

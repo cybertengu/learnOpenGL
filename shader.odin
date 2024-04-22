@@ -32,17 +32,17 @@ setFloat :: proc(name : cstring, value : f32, ID : u32)
 	gl.Uniform1f(gl.GetUniformLocation(ID, name), value)
 }
 
-setVec2 :: proc(name : cstring, value : ^glsl.vec2, ID : u32)
+setVec2 :: proc(name : cstring, value : ^linalg.Vector2f32, ID : u32)
 {
 	gl.Uniform2fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
 }
 
-setVec3 :: proc(name : cstring, value : ^glsl.vec3, ID : u32)
+setVec3 :: proc(name : cstring, value : ^linalg.Vector3f32, ID : u32)
 {
 	gl.Uniform3fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
 }
 
-setVec4 :: proc(name : cstring, value : ^glsl.vec4, ID : u32)
+setVec4 :: proc(name : cstring, value : ^linalg.Vector4f32, ID : u32)
 {
 	gl.Uniform4fv(gl.GetUniformLocation(ID, name), 1, raw_data(value))
 }
