@@ -73,11 +73,13 @@ main :: proc()
 	gl.BindVertexArray(cubeVAO)
 
 	// position attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
 	gl.EnableVertexAttribArray(0)  
 	// normal attribute
-	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(3 * size_of(f32)))
+	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(3 * size_of(f32)))
 	gl.EnableVertexAttribArray(1)
+	gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(6 * size_of(f32)))
+	gl.EnableVertexAttribArray(2)
 
 	lightCubeVAO : u32
 	gl.GenVertexArrays(1, &lightCubeVAO)
@@ -87,8 +89,17 @@ main :: proc()
 	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 
 	// set the vertex attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * size_of(f32), uintptr(0))
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
 	gl.EnableVertexAttribArray(0)
+
+	diffuseMap : u32 = loadTexture("container2.png")
+	specularMap : u32 = loadTexture("container2_specular.png")
+	emissionMap : u32 = loadTexture("matrix.jpg")
+
+	gl.UseProgram(lightingID)
+	setInt("material.diffuse", 0, lightingID)
+	setInt("material.specular", 1, lightingID)
+	setInt("material.emission", 2, lightingID)
 
 	// render loop
 	for !glfw.WindowShouldClose(window)
@@ -101,7 +112,7 @@ main :: proc()
 		processInput(&window)
 		
 		// rendering commands
-		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
+		gl.ClearColor(0.1, 0.1, 0.1, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		// change the light's position values over time.
@@ -114,22 +125,14 @@ main :: proc()
 		setVec3("viewPos", &camera.Position, lightingID)
 
 		// light properties
-		lightColor : linalg.Vector3f32
-		lightColor.x = math.sin_f32(f32(glfw.GetTime()) * 2.0)
-		lightColor.y = math.sin_f32(f32(glfw.GetTime()) * 0.7)
-		lightColor.z = math.sin_f32(f32(glfw.GetTime()) * 1.3)
-		diffuseColor := linalg.Vector3f32{1.0, 1.0, 1.0}
-		ambientColor := linalg.Vector3f32{1.0, 1.0, 1.0}
-		setVec3("light.ambient", &ambientColor, lightingID)
-		setVec3("light.diffuse", &diffuseColor, lightingID)
+		setVec3xyz("light.ambient", 0.2, 0.2, 0.2, lightingID)
+		setVec3xyz("light.diffuse", 0.5, 0.5, 0.5, lightingID)
 		setVec3xyz("light.specular", 1.0, 1.0, 1.0, lightingID)
 
 
 		// material properities
-		setVec3xyz("material.ambient", 0.0, 0.1, 0.06, lightingID)
-		setVec3xyz("material.diffuse", 0.0, 0.50980392, 0.50980392, lightingID)
-		setVec3xyz("material.specular", 0.50196078, 0.50196078, 0.50196078, lightingID)
-		setFloat("material.shininess", 0.25, lightingID)
+		setVec3xyz("material.specular", 0.5, 0.5, 0.5, lightingID)
+		setFloat("material.shininess", 64.0, lightingID)
 
 		// view/projection transformations
 		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
@@ -143,6 +146,13 @@ main :: proc()
 		model := linalg.identity_matrix(linalg.Matrix4f32)
 		setMat4("model", &model, lightingID)
 
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, diffuseMap)
+		gl.ActiveTexture(gl.TEXTURE1)
+		gl.BindTexture(gl.TEXTURE_2D, specularMap)
+		gl.ActiveTexture(gl.TEXTURE2)
+		gl.BindTexture(gl.TEXTURE_2D, emissionMap)
+
 		// render the cube
 		gl.BindVertexArray(cubeVAO)
 		gl.DrawArrays(gl.TRIANGLES, 0, 36)
@@ -155,7 +165,6 @@ main :: proc()
 		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(lightPos))
 		model = linalg.matrix_mul(model, linalg.matrix4_scale_f32(linalg.Vector3f32{0.2, 0.2, 0.2}))
 		setMat4("model", &model, lightingCubeID)
-		setVec3("light", &lightColor, lightingCubeID)
 
 		gl.BindVertexArray(lightCubeVAO)
 		gl.DrawArrays(gl.TRIANGLES, 0, 36)
@@ -239,5 +248,49 @@ scrollCallback :: proc "c" (window : ^glfw.WindowHandle, xoffset, yoffset : f64)
 framebufferSizeCallback :: proc "c" (window : glfw.WindowHandle, width, height : i32)
 {
 	gl.Viewport(0, 0, width, height)
+}
+
+loadTexture :: proc(path : string) -> u32
+{
+	textureID : u32
+	gl.GenTextures(1, &textureID)
+
+	width, height, nrComponents : i32
+	path_cstring, err := strings.clone_to_cstring(path)
+	data := stbi.load(path_cstring, &width, &height, &nrComponents, 0)
+	if data != nil
+	{
+		format : gl.GL_Enum
+		if nrComponents == 1
+		{
+			format = gl.GL_Enum.RED
+		}
+		else if nrComponents == 3
+		{
+			format = gl.GL_Enum.RGB
+		}
+		else if nrComponents == 4
+		{
+			format = gl.GL_Enum.RGBA
+		}
+
+		gl.BindTexture(gl.TEXTURE_2D, textureID)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, i32(format), width, height, 0, u32(format), gl.UNSIGNED_BYTE, data)
+		gl.GenerateMipmap(gl.TEXTURE_2D)
+
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+
+		stbi.image_free(data)
+	}
+	else
+	{
+		fmt.printf("Texture failde to load at path: %s\n", path)
+		stbi.image_free(data)
+	}
+
+	return textureID
 }
 
