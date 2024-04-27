@@ -59,7 +59,7 @@ main :: proc()
 	gl.Enable(gl.DEPTH_TEST)
 
 	// build and compile our shader program
-	lightingID := setShader("texture.vs", "texture.fs")
+	lightingID := setShader("materials.vs", "materials.fs")
 	lightingCubeID := setShader("lightTexture.vs", "lightTexture.fs")
 
 	VBO, cubeVAO : u32
@@ -105,16 +105,32 @@ main :: proc()
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		// change the light's position values over time.
-		lightPos.x = 1.0 + math.cos_f32(f32(glfw.GetTime())) * 2.0
-		lightPos.y = math.cos_f32(f32(glfw.GetTime()) / 2.0) * 1.0
+		//lightPos.x = 1.0 + math.cos_f32(f32(glfw.GetTime())) * 2.0
+		//lightPos.y = math.cos_f32(f32(glfw.GetTime()) / 2.0) * 1.0
 
 		// activate shader
 		gl.UseProgram(lightingID)
-		setVec3xyz("objectColor", 1, 0.5, 0.31, lightingID)
-		setVec3xyz("lightColor", 1, 1, 1, lightingID)
-		setVec3("lightPos", &lightPos, lightingID)
+		setVec3("light.position", &lightPos, lightingID)
 		setVec3("viewPos", &camera.Position, lightingID)
-		
+
+		// light properties
+		lightColor : linalg.Vector3f32
+		lightColor.x = math.sin_f32(f32(glfw.GetTime()) * 2.0)
+		lightColor.y = math.sin_f32(f32(glfw.GetTime()) * 0.7)
+		lightColor.z = math.sin_f32(f32(glfw.GetTime()) * 1.3)
+		diffuseColor := linalg.Vector3f32{1.0, 1.0, 1.0}
+		ambientColor := linalg.Vector3f32{1.0, 1.0, 1.0}
+		setVec3("light.ambient", &ambientColor, lightingID)
+		setVec3("light.diffuse", &diffuseColor, lightingID)
+		setVec3xyz("light.specular", 1.0, 1.0, 1.0, lightingID)
+
+
+		// material properities
+		setVec3xyz("material.ambient", 0.0, 0.1, 0.06, lightingID)
+		setVec3xyz("material.diffuse", 0.0, 0.50980392, 0.50980392, lightingID)
+		setVec3xyz("material.specular", 0.50196078, 0.50196078, 0.50196078, lightingID)
+		setFloat("material.shininess", 0.25, lightingID)
+
 		// view/projection transformations
 		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
 
@@ -139,6 +155,7 @@ main :: proc()
 		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(lightPos))
 		model = linalg.matrix_mul(model, linalg.matrix4_scale_f32(linalg.Vector3f32{0.2, 0.2, 0.2}))
 		setMat4("model", &model, lightingCubeID)
+		setVec3("light", &lightColor, lightingCubeID)
 
 		gl.BindVertexArray(lightCubeVAO)
 		gl.DrawArrays(gl.TRIANGLES, 0, 36)
