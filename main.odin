@@ -17,7 +17,7 @@ lastX : f32 = 400
 lastY : f32 = 300
 firstMouse : bool = true
 camera : Camera
-lightPos := linalg.Vector3f32{1.2, 1.0, 2.0}
+lightDirection := linalg.Vector3f32{-0.2, -1.0, -0.3}
 
 main :: proc()
 {
@@ -116,12 +116,12 @@ main :: proc()
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		// change the light's position values over time.
-		//lightPos.x = 1.0 + math.cos_f32(f32(glfw.GetTime())) * 2.0
-		//lightPos.y = math.cos_f32(f32(glfw.GetTime()) / 2.0) * 1.0
+		//lightDirection.x = 1.0 + math.cos_f32(f32(glfw.GetTime())) * 2.0
+		//lightDirection.y = math.cos_f32(f32(glfw.GetTime()) / 2.0) * 1.0
 
 		// activate shader
 		gl.UseProgram(lightingID)
-		setVec3("light.position", &lightPos, lightingID)
+		setVec3("light.direction", &lightDirection, lightingID)
 		setVec3("viewPos", &camera.Position, lightingID)
 
 		// light properties
@@ -129,10 +129,16 @@ main :: proc()
 		setVec3xyz("light.diffuse", 0.5, 0.5, 0.5, lightingID)
 		setVec3xyz("light.specular", 1.0, 1.0, 1.0, lightingID)
 
-
 		// material properities
 		setVec3xyz("material.specular", 0.5, 0.5, 0.5, lightingID)
-		setFloat("material.shininess", 64.0, lightingID)
+		setFloat("material.shininess", 32.0, lightingID)
+		setFloat("light.constant", 1.0, lightingID)
+		setFloat("light.linear", 0.09, lightingID)
+		setFloat("light.quadratic", 0.032, lightingID)
+		setVec3("light.position", &camera.Position, lightingID)
+		setVec3("light.direction", &camera.Front, lightingID)
+		setFloat("light.cutOff", math.cos_f32(f32(linalg.to_radians(12.5))), lightingID)
+		setFloat("light.outerCutOff", math.cos_f32(f32(linalg.to_radians(17.5))), lightingID)
 
 		// view/projection transformations
 		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
@@ -143,26 +149,36 @@ main :: proc()
 		setMat4("view", &view, lightingID)
 		
 		// world transformation
-		model := linalg.identity_matrix(linalg.Matrix4f32)
-		setMat4("model", &model, lightingID)
+		model : linalg.Matrix4f32
+		gl.BindVertexArray(cubeVAO)
+		for i : u32 = 0; i < 10; i += 1
+		{
+			model = linalg.identity_matrix(linalg.Matrix4f32)
+			model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(cubePositions[i]))
+			angle : f32 = 20.0 * f32(i)
+			model = linalg.matrix_mul(model, linalg.matrix4_rotate_f32(linalg.to_radians(angle), [3]f32{1, 0.3, 0.5}))
+			setMat4("model", &model, lightingID)
+
+			gl.DrawArrays(gl.TRIANGLES, 0, 36)
+		}
 
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.BindTexture(gl.TEXTURE_2D, diffuseMap)
 		gl.ActiveTexture(gl.TEXTURE1)
 		gl.BindTexture(gl.TEXTURE_2D, specularMap)
-		gl.ActiveTexture(gl.TEXTURE2)
-		gl.BindTexture(gl.TEXTURE_2D, emissionMap)
+		//gl.ActiveTexture(gl.TEXTURE2)
+		//gl.BindTexture(gl.TEXTURE_2D, emissionMap)
 
 		// render the cube
-		gl.BindVertexArray(cubeVAO)
-		gl.DrawArrays(gl.TRIANGLES, 0, 36)
+		//gl.BindVertexArray(cubeVAO)
+		//gl.DrawArrays(gl.TRIANGLES, 0, 36)
 
 		// also draw the lamp object
 		gl.UseProgram(lightingCubeID)
 		setMat4("projection", &projection, lightingCubeID)
 		setMat4("view", &view, lightingCubeID)
 		model = linalg.identity_matrix(linalg.Matrix4f32)
-		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(lightPos))
+		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(lightDirection))
 		model = linalg.matrix_mul(model, linalg.matrix4_scale_f32(linalg.Vector3f32{0.2, 0.2, 0.2}))
 		setMat4("model", &model, lightingCubeID)
 
