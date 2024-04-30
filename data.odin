@@ -60,3 +60,9 @@ linalg.Vector3f32{ 1.5,  0.2, -1.5},
 linalg.Vector3f32{-1.3,  1,   -1.5}
 }
 
+pointLightPositions : []linalg.Vector3f32 = {
+	linalg.Vector3f32{ 0.4, 0.7, 0.1},
+	linalg.Vector3f32{ 0.4, 0.7, 0.1},
+	linalg.Vector3f32{ 0.4, 0.7, 0.1},
+	linalg.Vector3f32{ 0.4, 0.7, 0.1}
+}
