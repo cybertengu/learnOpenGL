@@ -2,3 +2,5 @@
 *.pdb
 *.rdbg
 *.cap
+*.lib
+*.dll

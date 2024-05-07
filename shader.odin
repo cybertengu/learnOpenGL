@@ -1,6 +1,6 @@
 package code
 
-import gl "vendor:openGL"
+import gl "vendor:OpenGL"
 import "core:os"
 import "core:fmt"
 import "core:strings"

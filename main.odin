@@ -2,7 +2,7 @@ package code
 
 import glfw "vendor:glfw/bindings"
 import glf "vendor:glfw"
-import gl "vendor:openGL"
+import gl "vendor:OpenGL"
 import stbi "vendor:stb/image"
 import "core:os"
 import "core:fmt"
@@ -11,6 +11,7 @@ import "core:strings"
 import "core:math"
 import "core:math/linalg/glsl"
 import "core:math/linalg"
+import ai "odin-assimp"
 
 deltaTime, lastFrame : f64
 lastX : f32 = 400
@@ -59,46 +60,51 @@ main :: proc()
 	gl.Enable(gl.DEPTH_TEST)
 
 	// build and compile our shader program
-	lightingID := setShader("multipleLights.vs", "multipleLights.fs")
-	lightingCubeID := setShader("lightCube.vs", "lightCube.fs")
+	ourShaderID := setShader("1.model_loading.vs", "1.model_loading.fs")
+	//lightingID := setShader("multipleLights.vs", "multipleLights.fs")
+	//lightingCubeID := setShader("lightCube.vs", "lightCube.fs")
 
-	VBO, cubeVAO : u32
-	gl.GenVertexArrays(1, &cubeVAO)
-	gl.GenBuffers(1, &VBO)
+	//VBO, cubeVAO : u32
+	//gl.GenVertexArrays(1, &cubeVAO)
+	//gl.GenBuffers(1, &VBO)
 
-	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices[0]) * len(vertices), raw_data(vertices), gl.STATIC_DRAW)
+	//gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
+	//gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices[0]) * len(vertices), raw_data(vertices), gl.STATIC_DRAW)
 
 	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-	gl.BindVertexArray(cubeVAO)
+	//gl.BindVertexArray(cubeVAO)
 
 	// position attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
-	gl.EnableVertexAttribArray(0)  
+	//gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
+	//gl.EnableVertexAttribArray(0)  
 	// normal attribute
-	gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(3 * size_of(f32)))
-	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(6 * size_of(f32)))
-	gl.EnableVertexAttribArray(2)
+	//gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(3 * size_of(f32)))
+	//gl.EnableVertexAttribArray(1)
+	//gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(6 * size_of(f32)))
+	//gl.EnableVertexAttribArray(2)
 
-	lightCubeVAO : u32
-	gl.GenVertexArrays(1, &lightCubeVAO)
-	gl.BindVertexArray(lightCubeVAO)
+	//lightCubeVAO : u32
+	//gl.GenVertexArrays(1, &lightCubeVAO)
+	//gl.BindVertexArray(lightCubeVAO)
 
 	// we only need to bind to the VBO, the container's  VBO's data already contains the data.
-	gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
+	//gl.BindBuffer(gl.ARRAY_BUFFER, VBO)
 
 	// set the vertex attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
-	gl.EnableVertexAttribArray(0)
+	//gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * size_of(f32), uintptr(0))
+	//gl.EnableVertexAttribArray(0)
 
-	diffuseMap : u32 = loadTexture("container2.png")
-	specularMap : u32 = loadTexture("container2_specular.png")
+	//diffuseMap : u32 = loadTexture("container2.png")
+	//specularMap : u32 = loadTexture("container2_specular.png")
 
-	gl.UseProgram(lightingID)
-	setInt("material.diffuse", 0, lightingID)
-	setInt("material.specular", 1, lightingID)
+	//gl.UseProgram(lightingID)
+	//setInt("material.diffuse", 0, lightingID)
+	//setInt("material.specular", 1, lightingID)
 	clearColor := linalg.Vector4f32{0.9, 0.9, 0.9, 1.0}
+
+	// load models
+	ourModel : Model
+	loadModel(&ourModel, "backpack\\backpack.obj")
 
 	// render loop
 	for !glfw.WindowShouldClose(window)
@@ -115,6 +121,25 @@ main :: proc()
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		// activate shader
+		gl.UseProgram(ourShaderID)
+	
+		// view/projection transformations
+		projection := linalg.matrix4_perspective_f32(linalg.to_radians(camera.Zoom), SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 100)
+
+		// camera/view transformation
+		view := getViewMatrix(&camera)
+		setMat4("projection", &projection, ourShaderID)
+		setMat4("view", &view, ourShaderID)
+
+		// render the loaded model
+		model := linalg.identity_matrix(linalg.Matrix4f32)
+		model = linalg.matrix_mul(model, linalg.matrix4_translate_f32(linalg.Vector3f32{0, 0, 0}))
+		model = linalg.matrix_mul(model, linalg.matrix4_scale_f32(linalg.Vector3f32{1, 1, 1}))
+		setMat4("model", &model, ourShaderID)
+		drawModel(&ourModel, ourShaderID)
+
+		// activate shader
+		/*
 		gl.UseProgram(lightingID)
 		setVec3("viewPos", &camera.Position, lightingID)
 		setFloat("material.shininess", 32.0, lightingID)
@@ -221,18 +246,19 @@ main :: proc()
 
 			gl.DrawArrays(gl.TRIANGLES, 0, 36)
 		}
-	
+	*/
 		// check and call events and swap the buffers
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
-	gl.DeleteBuffers(1, &VBO)
-	gl.DeleteBuffers(1, &cubeVAO)
-	gl.DeleteBuffers(1, &lightCubeVAO)
-	gl.DeleteProgram(lightingID)
-	gl.DeleteProgram(lightingCubeID)
+	//gl.DeleteBuffers(1, &VBO)
+	//gl.DeleteBuffers(1, &cubeVAO)
+	//gl.DeleteBuffers(1, &lightCubeVAO)
+	//gl.DeleteProgram(lightingID)
+	//gl.DeleteProgram(lightingCubeID)
+	gl.DeleteProgram(ourShaderID)
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfw.Terminate()
